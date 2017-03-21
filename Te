@@ -1,0 +1,136 @@
+! / Usr / bin / perl -w
+#
+# Log-openvpn-users.pl v1
+# Registra usuários e atividade do OpenVPN
+# Lê o arquivo openvpn-status.log e relata as alterações em um log
+# Openvpn-status.log é normalmente atualizado a cada minuto e então você deve ter um trabalho cron para executar o script a cada minuto também
+#
+# Cron job:
+# * * * * * / Usr / bin / perl /script/location/log-openvpn-users.pl
+#
+# Changes:
+#   V1: Primeira versão
+#   V2: Gerenciamento de erros melhorados
+
+Uso rigoroso;
+Usar avisos;
+
+My  $ input_file   = ' /etc/openvpn/openvpn-status.log ' ;
+Meu  $ output_file = ' /var/log/openvpn/openvpn-clients.log ' ;
+My  $ temp_file    = ' /etc/openvpn/openvpn-tmp.log ' ;
+Meu  $ sep = " , " ;
+My  $ clientlist = 0;
+Meu  $ routingtable = 0;
+My  @tokens = " " ;
+My  % arraytemp = ();	
+My  % arraybuff = ();	
+Meu  $ debug = 0;
+
+se ( aberta TEMP, " < " , $ temp_file )
+{	 # Ler arquivo temporário	
+	My  $ dummy = <TEMP>;   # Ignorar cabeçalho no arquivo
+	My  @linestemp = <TEMP>;
+	Fechar TEMP;
+	Foreach  meu  $ linha ( @linestemp ) {
+		Chop ( $ linha );
+		@tokens = split ( / , / , $ line );
+		# ID, IP, CN, BS, BR, CS, LR
+		$ Arraytemp { $ tokens [0]} { ' IP ' } = $ tokens [1];
+		$ Arraytemp { $ tokens [0]} { ' CN ' } = $ tokens [2];
+		$ Arraytemp { $ tokens [0]} { ' BS ' } = $ tokens [3];
+		$ Arraytemp { $ tokens [0]} { ' BR ' } = $ tokens [4];
+		$ Arraytemp { $ tokens [0]} { ' CS ' } = $ tokens [5];
+		$ Arraytemp { $ tokens [0]} { ' LR ' } = $ tokens [6];
+	}	
+}
+
+Aberto (INPUTF, " < " , $ input_file ) || Die  " Não é possível abrir $ input_file : $! " ;
+My  @lines = <INPUTF>;
+Fechar INPUTF;
+
+Foreach  minha  linha $ ( @lines )
+{
+	Chop ( $ linha );
+	If ( $ line   = ~ m / ^ GLOBAL STATS / )
+	{
+		última ;
+	}
+	se ( clientList $  eq 1)
+	{
+		If ( $ line   = ~ m / ^ TABELA DE ROUTA / )
+		{
+			Próximo ;
+		}
+		If ( $ line   = ~ m / ^ Endereço Virtual, Nome Comum, Endereço Real, Última Ref / )
+		{
+			$ Clientlist = 0;
+			$ Routingtable = 1;
+			Próximo ;
+		}	
+		@tokens = split ( / , / , $ line );
+		$ Arraybuff { $ tokens [1]} { ' CN ' } = $ tokens [0];
+		$ Arraybuff { $ tokens [1]} { ' BR ' } = $ tokens [2];
+		$ Arraybuff { $ tokens [1]} { ' BS ' } = $ tokens [3];
+		$ Arraybuff { $ tokens [1]} { ' CS ' } = $ tokens [4];
+	}
+	Se ( $ line   = ~ m / ^ Nome Comum, Real Endereço, bytes recebidos, Bytes enviados, Conectado Desde / )
+	{
+		$ Clientlist = 1;
+		Próximo ;
+	}
+	Se ( $ routingtable  eq 1)
+	{
+		@tokens = split ( / , / , $ line );
+		$ Arraybuff { $ tokens [2]} { ' IP ' } = $ tokens [0];
+		$ Arraybuff { $ tokens [2]} { ' LR ' } = $ tokens [3];
+	}
+}
+
+Aberto (TEMP, " > " , $ temp_file ) || Die  " Não é possível abrir $ temp_file : $! " ;
+impressão TEMP ' ID ' . $ sep . ' IP ' . $ sep . « CN » . $ sep . ' BS ' . $ sep . ' BR ' . $ sep . ' CS ' . $ sep . ' LR ' . " \ N " ;
+Foreach  meu  $ id ( chaves  % arraybuff )
+{
+	If ( $ debug  eq 1)
+	{
+		Se ((! definida ( $ arraybuff { $ id } { ' IP ' })) || (! definida ( $ arraybuff { $ id } { ' CN ' })) || (! definida ( $ arraybuff { $ id } { ' BS ' })) || (! definida ( $ arraybuff { $ id } { ' BR ' })) || (! definida ( $ arraybuff { $ id } { ' CS ' })) || (!Definido ( $ arraybuff { $ id } { ' LR ' })))
+		{
+			Print  " == VAR: =============================== \ n " ;
+			Print  " id é [ $ id ] \ n " ;
+			Print  " IP é [ $ arraybuff { $ id } {'IP'}] \ n " ;
+			Print  " CN é [ $ arraybuff { $ id } {'CN'}] \ n " ;
+			Print  " BS é [ $ arraybuff { $ id } {'BS'}] \ n " ;
+			Print  " BR é [ $ arraybuff { $ id } {'BR'}] \ n " ;
+			Print  " CS é [ $ arraybuff { $ id } {'CS'}] \ n " ;
+			Print  " LR é [ $ arraybuff { $ id } {'LR'}] \ n " ;
+			Print  " == FILE: =============================== \ n " ;
+			Foreach  minha  linha $ ( @lines )
+			{
+				Impressão  $ linha . " \ N " ;
+			}
+			Print  " == ARRAY: =============================== \ n " ;
+			Use Dados :: Dumper;
+			Print Dumper (\ % arraybuff );
+		}
+	}
+	se ( definido ( $ arraybuff { $ id } { ' IP ' }))
+	{
+		Imprimir TEMP $ id . $ sep . $ Arraybuff { $ id } { ' IP ' }. $ sep . $ Arraybuff { $ id } { ' CN ' }. $ sep . $ Arraybuff { $ id } { ' BS ' }. $ sep . $ Arraybuff { $ id } { ' BR ' }. $ sep . $ Arraybuff { $ id } { ' CS ' }. $ sep . $ Arraybuff { $ id } { ' LR ' }. " \ N " ;
+	}
+}
+Fechar TEMP;	
+
+( Meu  $ seg , meu  $ min , meu  $ hora , meu  $ mday , meu  $ mon , meu  $ ano , meu  $ wday , meu  $ yday , meu  $ isdst ) = localtime ();
+$ Ano + = 1900;
+$ Mon ++;
+My  $ now_string = sprintf ( " % 02d-% 02d-% 04d% 02d:% 02d:% 02d " , $ mday , $ mon , $ ano , $ hora , $ min , $ seg );
+
+Aberto (OUTPUT, " >> " , $ output_file ) || Die  " Não é possível abrir $ output_file : $! " ;
+Foreach  meu  $ id ( chaves  % arraytemp )
+{	
+	se (! definida ( $ arraybuff { $ id } { ' IP ' }))
+	{
+  		# Conexão não mais, informe
+  		Print OUTPUT $ now_string . $ sep . $ Id . $ sep . $ Arraytemp { $ id } { ' IP ' }. $ sep . $ Arraytemp { $ id } { ' CN ' }. $ sep . $ Arraytemp { $ id } { ' BS ' }. $ sep . $ Arraytemp { $ id } { ' BR ' }. $ sep . $ Arraytemp { $ id } { ' CS ' }. $ sep . $ Arraytemp { $ id } { ' LR ' }. " \ N " ;
+  	}
+}
+Close OUTPUT;
